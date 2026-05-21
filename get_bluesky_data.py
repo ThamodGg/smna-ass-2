@@ -1,6 +1,43 @@
+import os
+import sys
+import time
 import requests
 import pandas as pd
-import time
+
+BASE_URL = "https://bsky.social"
+
+BLUESKY_HANDLE = os.getenv("BLUESKY_HANDLE")
+BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_APP_PASSWORD")
+
+if not BLUESKY_HANDLE or not BLUESKY_APP_PASSWORD:
+    sys.exit(
+        "Missing login details. Run these first:\n"
+        'export BLUESKY_HANDLE="yourhandle.bsky.social"\n'
+        'export BLUESKY_APP_PASSWORD="your-app-password"'
+    )
+
+# 1. Login and get access token
+login_response = requests.post(
+    f"{BASE_URL}/xrpc/com.atproto.server.createSession",
+    json={
+        "identifier": BLUESKY_HANDLE,
+        "password": BLUESKY_APP_PASSWORD
+    },
+    timeout=30
+)
+
+if login_response.status_code != 200:
+    print("Login failed:")
+    print(login_response.status_code)
+    print(login_response.text)
+    sys.exit()
+
+session = login_response.json()
+access_token = session["accessJwt"]
+
+headers = {
+    "Authorization": f"Bearer {access_token}"
+}
 
 queries = [
     'Tesla lang:en since:2026-04-01 until:2026-05-22',
@@ -21,12 +58,15 @@ for query in queries:
     }
 
     response = requests.get(
-        "https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts",
-        params=params
+        f"{BASE_URL}/xrpc/app.bsky.feed.searchPosts",
+        headers=headers,
+        params=params,
+        timeout=30
     )
 
     if response.status_code != 200:
-        print("Error:", response.status_code, response.text)
+        print("Error:", response.status_code)
+        print(response.text[:500])
         continue
 
     data = response.json()
@@ -52,9 +92,11 @@ for query in queries:
     time.sleep(1)
 
 df = pd.DataFrame(all_posts)
-df.drop_duplicates(subset=["post_uri"], inplace=True)
+
+if len(df) > 0:
+    df.drop_duplicates(subset=["post_uri"], inplace=True)
 
 df.to_csv("bluesky_tesla_byd_posts.csv", index=False)
 
 print("Saved:", len(df), "posts")
-df.head()
+print(df.head())
