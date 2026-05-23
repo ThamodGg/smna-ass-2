@@ -58,7 +58,7 @@ def make_weekly_windows(start_date, end_date):
 
     return windows
 
-date_windows = make_weekly_windows("2026-01-01", "2026-05-22")
+date_windows = make_weekly_windows("2026-01-01", "2026-05-18")
 
 # Query list
 queries = [
